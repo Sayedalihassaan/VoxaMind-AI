@@ -1,0 +1,68 @@
+models:
+  llm:
+    recommended:
+      - name: llama3.2
+        size: "2B"
+        description: "Fast, good for conversation. Default choice."
+        ram_required: "4GB"
+      - name: llama3.2:3b
+        size: "3B"
+        description: "Better reasoning, still fast"
+        ram_required: "6GB"
+      - name: mistral
+        size: "7B"
+        description: "Strong instruction following"
+        ram_required: "8GB"
+      - name: phi3.5
+        size: "3.8B"
+        description: "Microsoft's efficient model"
+        ram_required: "4GB"
+      - name: qwen2.5:7b
+        size: "7B"
+        description: "Excellent multilingual support"
+        ram_required: "8GB"
+
+  embedding:
+    recommended:
+      - name: nomic-embed-text
+        dim: 768
+        description: "Default embedding model, well-rounded"
+      - name: mxbai-embed-large
+        dim: 1024
+        description: "Higher quality embeddings"
+
+  stt:
+    whisper_models:
+      - name: tiny.en
+        size: "39M"
+        speed: "fastest"
+        accuracy: "lower"
+      - name: base.en
+        size: "74M"
+        speed: "fast"
+        accuracy: "good"
+        recommended: true
+      - name: small.en
+        size: "244M"
+        speed: "moderate"
+        accuracy: "better"
+      - name: medium.en
+        size: "769M"
+        speed: "slow"
+        accuracy: "best for english"
+
+  tts:
+    edge_tts_voices:
+      - name: en-US-AriaNeural
+        gender: female
+        style: "conversational"
+        recommended: true
+      - name: en-US-GuyNeural
+        gender: male
+        style: "conversational"
+      - name: en-GB-SoniaNeural
+        gender: female
+        style: "british"
+      - name: en-AU-NatashaNeural
+        gender: female
+        style: "australian"

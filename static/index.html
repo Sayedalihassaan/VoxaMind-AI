@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16161a;
+      --surface2: #1e1e24;
+      --border: #2a2a35;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #e8e8f0;
+      --text-muted: #6b6b80;
+      --red: #ff4d6d;
+      --green: #34d399;
+      --yellow: #fbbf24;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; }
+    .logo-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .status-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 12px; font-weight: 500;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+    .status-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.listening { background: var(--accent); box-shadow: 0 0 6px var(--accent);
+      animation: pulse 1s infinite; }
+    .status-dot.processing { background: var(--yellow); box-shadow: 0 0 6px var(--yellow);
+      animation: pulse 0.5s infinite; }
+    .status-dot.speaking { background: var(--green); box-shadow: 0 0 6px var(--green);
+      animation: pulse 0.8s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ── Chat panel ── */
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .messages::-webkit-scrollbar { width: 6px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .message {
+      max-width: 72%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      line-height: 1.55;
+      font-size: 14.5px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    .message.transcript {
+      align-self: flex-end;
+      background: rgba(108,99,255,0.15);
+      border: 1px dashed var(--accent);
+      color: var(--accent2);
+      font-style: italic;
+      font-size: 13px;
+    }
+    .message .label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      opacity: 0.6;
+      margin-bottom: 4px;
+    }
+
+    /* Typing indicator */
+    .typing {
+      align-self: flex-start;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 14px 18px;
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .typing span {
+      width: 6px; height: 6px; background: var(--text-muted);
+      border-radius: 50%; animation: bounce 1.2s infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+    /* ── Controls ── */
+    .controls {
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mic-btn {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      transition: all 0.2s;
+      position: relative;
+      background: var(--surface2);
+      border: 2px solid var(--border);
+      color: var(--text);
+    }
+    .mic-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .mic-btn.listening {
+      background: var(--accent); border-color: var(--accent);
+      color: white;
+      box-shadow: 0 0 0 8px rgba(108,99,255,0.2);
+      animation: ripple 1.5s infinite;
+    }
+    .mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    @keyframes ripple {
+      0% { box-shadow: 0 0 0 0 rgba(108,99,255,0.4); }
+      70% { box-shadow: 0 0 0 16px rgba(108,99,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(108,99,255,0); }
+    }
+
+    .hint-text {
+      flex: 1;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .waveform {
+      width: 120px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .waveform-bar {
+      flex: 1; border-radius: 2px;
+      background: var(--accent);
+      height: 4px;
+      transition: height 0.1s;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 280px;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+    }
+    .sidebar-body { flex: 1; padding: 16px 20px; overflow-y: auto; }
+    .info-row { display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .info-row .key { color: var(--text-muted); }
+    .info-row .val { font-weight: 500; font-size: 12px; text-align: right;
+      max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .val.ok { color: var(--green); }
+    .val.bad { color: var(--red); }
+
+    .ingest-section { margin-top: 20px; }
+    .ingest-section h3 { font-size: 12px; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.6px; margin-bottom: 10px; }
+    .ingest-section textarea {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 10px; font-size: 13px;
+      resize: vertical; min-height: 80px; font-family: inherit; outline: none;
+    }
+    .ingest-section textarea:focus { border-color: var(--accent); }
+    .ingest-btn {
+      margin-top: 8px; width: 100%;
+      background: var(--accent); color: white; border: none;
+      padding: 8px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      font-weight: 600; transition: opacity 0.2s;
+    }
+    .ingest-btn:hover { opacity: 0.85; }
+
+    .clear-btn {
+      margin-top: 16px; width: 100%;
+      background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+      padding: 8px; border-radius: 8px; cursor: pointer; font-size: 13px;
+      transition: all 0.2s;
+    }
+    .clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🎙</div>
+    Voice Agent
+  </div>
+  <div class="status-badge">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</header>
+
+<main>
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="message assistant">
+        <div class="label">Assistant</div>
+        Hello! I'm your voice assistant. Press the microphone button and start speaking.
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="mic-btn" id="micBtn" disabled title="Hold to speak">🎤</button>
+      <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+        <span class="hint-text" id="hintText">Click microphone to start listening</span>
+        <div class="waveform" id="waveform">
+          <!-- bars added by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-header">System Info</div>
+    <div class="sidebar-body">
+      <div class="info-row"><span class="key">Ollama</span><span class="val" id="siOllama">–</span></div>
+      <div class="info-row"><span class="key">Model</span><span class="val" id="siModel">–</span></div>
+      <div class="info-row"><span class="key">Redis</span><span class="val" id="siRedis">–</span></div>
+      <div class="info-row"><span class="key">Documents</span><span class="val" id="siDocs">–</span></div>
+      <div class="info-row"><span class="key">Session</span><span class="val" id="siSession">–</span></div>
+
+      <div class="ingest-section">
+        <h3>Ingest Document</h3>
+        <textarea id="ingestText" placeholder="Paste text to add to knowledge base..."></textarea>
+        <button class="ingest-btn" id="ingestBtn">Add to Knowledge Base</button>
+      </div>
+
+      <button class="clear-btn" id="clearBtn">Clear Conversation</button>
+    </div>
+  </aside>
+</main>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const WS_URL = `ws://${location.host}/ws/audio`;
+const API_BASE = `${location.protocol}//${location.host}/api`;
+const SAMPLE_RATE = 16000;
+const SILENCE_THRESHOLD = 0.01;
+const SILENCE_DURATION_MS = 1200;
+const CHUNK_SIZE = 4096;
+
+// ── DOM refs ────────────────────────────────────────────────────────────────
+const micBtn = document.getElementById('micBtn');
+const hintText = document.getElementById('hintText');
+const messagesEl = document.getElementById('messages');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const waveformEl = document.getElementById('waveform');
+const ingestTextEl = document.getElementById('ingestText');
+const ingestBtn = document.getElementById('ingestBtn');
+const clearBtn = document.getElementById('clearBtn');
+
+// ── Waveform bars ───────────────────────────────────────────────────────────
+const NUM_BARS = 16;
+for (let i = 0; i < NUM_BARS; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'waveform-bar';
+  waveformEl.appendChild(bar);
+}
+const bars = waveformEl.querySelectorAll('.waveform-bar');
+
+// ── State ───────────────────────────────────────────────────────────────────
+let ws = null;
+let sessionId = null;
+let isListening = false;
+let state = 'idle'; // idle | listening | processing | speaking
+
+// Audio
+let audioCtx = null;
+let mediaStream = null;
+let sourceNode = null;
+let processorNode = null;
+let analyserNode = null;
+let silenceTimer = null;
+let analyserTimer = null;
+
+// Streaming response
+let currentAssistantMsg = null;
+let typingIndicator = null;
+
+// Audio playback queue
+let audioCtxPlay = null;
+let audioQueue = [];
+let isPlayingAudio = false;
+
+// ── WebSocket ───────────────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => setStatus('connected', 'Connected');
+  ws.onclose = () => { setStatus('disconnected', 'Disconnected'); setTimeout(connect, 2000); };
+  ws.onerror = () => setStatus('disconnected', 'Error');
+
+  ws.onmessage = (event) => {
+    if (event.data instanceof ArrayBuffer) return;
+    try {
+      const msg = JSON.parse(event.data);
+      handleMessage(msg);
+    } catch(e) {}
+  };
+}
+
+function handleMessage(msg) {
+  switch(msg.type) {
+    case 'session_start':
+      sessionId = msg.data.session_id;
+      document.getElementById('siSession').textContent = sessionId.slice(0,8) + '...';
+      micBtn.disabled = false;
+      fetchHealth();
+      break;
+    case 'transcript':
+      showTranscript(msg.data.text);
+      setStatus('processing', 'Processing...');
+      break;
+    case 'response_text':
+      if (!msg.data.is_final) appendAssistantToken(msg.data.text);
+      else finalizeAssistant();
+      break;
+    case 'response_audio':
+      queueAudio(msg.data.audio, msg.data.sample_rate);
+      break;
+    case 'response_audio_end':
+      break;
+    case 'error':
+      addMessage('assistant', `⚠️ ${msg.data.message}`);
+      setStatus('connected', 'Connected');
+      break;
+    case 'pong':
+      break;
+  }
+}
+
+// ── Status ──────────────────────────────────────────────────────────────────
+function setStatus(s, label) {
+  state = s;
+  statusDot.className = 'status-dot ' + s;
+  statusText.textContent = label;
+}
+
+// ── Microphone ──────────────────────────────────────────────────────────────
+micBtn.addEventListener('click', async () => {
+  if (isListening) stopListening();
+  else await startListening();
+});
+
+async function startListening() {
+  if (!audioCtx) audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  // Stop any playback
+  stopAudioPlayback();
+
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, sampleRate: SAMPLE_RATE, echoCancellation: true, noiseSuppression: true }
+  });
+
+  sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+  analyserNode = audioCtx.createAnalyser();
+  analyserNode.fftSize = 256;
+  processorNode = audioCtx.createScriptProcessor(CHUNK_SIZE, 1, 1);
+
+  processorNode.onaudioprocess = (e) => {
+    if (!isListening) return;
+    const chunk = e.inputBuffer.getChannelData(0);
+    const int16 = float32ToInt16(chunk);
+    if (ws?.readyState === WebSocket.OPEN) ws.send(int16.buffer);
+
+    // Silence detection
+    const rms = Math.sqrt(chunk.reduce((s,v) => s + v*v, 0) / chunk.length);
+    if (rms < SILENCE_THRESHOLD) {
+      if (!silenceTimer) silenceTimer = setTimeout(onSilence, SILENCE_DURATION_MS);
+    } else {
+      clearTimeout(silenceTimer); silenceTimer = null;
+    }
+  };
+
+  sourceNode.connect(analyserNode);
+  analyserNode.connect(processorNode);
+  processorNode.connect(audioCtx.destination);
+
+  // Waveform animation
+  analyserTimer = setInterval(() => {
+    if (!analyserNode) return;
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    analyserNode.getByteFrequencyData(data);
+    const step = Math.floor(data.length / NUM_BARS);
+    bars.forEach((bar, i) => {
+      const val = data[i * step] / 255;
+      bar.style.height = Math.max(4, val * 32) + 'px';
+    });
+  }, 60);
+
+  isListening = true;
+  micBtn.classList.add('listening');
+  setStatus('listening', 'Listening...');
+  hintText.textContent = 'Listening — speak now...';
+
+  ws.send(JSON.stringify({ type: 'session_start', data: { format: 'pcm16', sample_rate: SAMPLE_RATE } }));
+}
+
+function stopListening() {
+  isListening = false;
+  clearTimeout(silenceTimer); silenceTimer = null;
+  clearInterval(analyserTimer); analyserTimer = null;
+
+  if (processorNode) { processorNode.disconnect(); processorNode = null; }
+  if (analyserNode) { analyserNode.disconnect(); analyserNode = null; }
+  if (sourceNode) { sourceNode.disconnect(); sourceNode = null; }
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+
+  micBtn.classList.remove('listening');
+  bars.forEach(b => b.style.height = '4px');
+}
+
+function onSilence() {
+  stopListening();
+  ws.send(JSON.stringify({ type: 'audio_end', timestamp: Date.now() }));
+  setStatus('processing', 'Thinking...');
+  hintText.textContent = 'Processing your request...';
+  showTypingIndicator();
+}
+
+// ── Chat UI ─────────────────────────────────────────────────────────────────
+function addMessage(role, text) {
+  const el = document.createElement('div');
+  el.className = `message ${role}`;
+  if (role === 'assistant') {
+    const label = document.createElement('div');
+    label.className = 'label'; label.textContent = 'Assistant';
+    el.appendChild(label);
+  }
+  const content = document.createElement('span');
+  content.textContent = text;
+  el.appendChild(content);
+  messagesEl.appendChild(el);
+  scrollToBottom();
+  return el;
+}
+
+function showTranscript(text) {
+  removeTypingIndicator();
+  const el = document.createElement('div');
+  el.className = 'message transcript';
+  el.textContent = '🎤 ' + text;
+  messagesEl.appendChild(el);
+  scrollToBottom();
+}
+
+function showTypingIndicator() {
+  removeTypingIndicator();
+  typingIndicator = document.createElement('div');
+  typingIndicator.className = 'typing';
+  typingIndicator.innerHTML = '<span></span><span></span><span></span>';
+  messagesEl.appendChild(typingIndicator);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  if (typingIndicator) { typingIndicator.remove(); typingIndicator = null; }
+}
+
+function appendAssistantToken(token) {
+  removeTypingIndicator();
+  if (!currentAssistantMsg) {
+    currentAssistantMsg = addMessage('assistant', '');
+    setStatus('speaking', 'Speaking...');
+    hintText.textContent = 'Assistant is responding...';
+  }
+  currentAssistantMsg.querySelector('span').textContent += token;
+  scrollToBottom();
+}
+
+function finalizeAssistant() {
+  currentAssistantMsg = null;
+  setStatus('connected', 'Connected');
+  hintText.textContent = 'Click microphone to start listening';
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── Audio playback ───────────────────────────────────────────────────────────
+function queueAudio(base64Audio, sampleRate) {
+  const binary = atob(base64Audio);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  audioQueue.push({ data: bytes.buffer, sampleRate });
+  if (!isPlayingAudio) playNextAudio();
+}
+
+async function playNextAudio() {
+  if (audioQueue.length === 0) { isPlayingAudio = false; return; }
+  isPlayingAudio = true;
+
+  if (!audioCtxPlay) audioCtxPlay = new AudioContext();
+  if (audioCtxPlay.state === 'suspended') await audioCtxPlay.resume();
+
+  const { data, sampleRate } = audioQueue.shift();
+
+  try {
+    const audioBuffer = await audioCtxPlay.decodeAudioData(data);
+    const source = audioCtxPlay.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioCtxPlay.destination);
+    source.onended = () => playNextAudio();
+    source.start(0);
+  } catch(e) {
+    // Fallback: try as raw PCM
+    try {
+      const int16 = new Int16Array(data);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+      const ab = audioCtxPlay.createBuffer(1, float32.length, sampleRate || 22050);
+      ab.copyToChannel(float32, 0);
+      const src = audioCtxPlay.createBufferSource();
+      src.buffer = ab; src.connect(audioCtxPlay.destination);
+      src.onended = () => playNextAudio();
+      src.start(0);
+    } catch (e2) {
+      playNextAudio();
+    }
+  }
+}
+
+function stopAudioPlayback() {
+  audioQueue = [];
+  isPlayingAudio = false;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function float32ToInt16(buf) {
+  const out = new Int16Array(buf.length);
+  for (let i = 0; i < buf.length; i++) {
+    const s = Math.max(-1, Math.min(1, buf[i]));
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return out;
+}
+
+// ── Health check ─────────────────────────────────────────────────────────────
+async function fetchHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    const data = await res.json();
+    const sv = data.services;
+    document.getElementById('siOllama').textContent = sv.ollama.ok ? '✓ Online' : '✗ Offline';
+    document.getElementById('siOllama').className = 'val ' + (sv.ollama.ok ? 'ok' : 'bad');
+    document.getElementById('siModel').textContent = sv.ollama.model || '–';
+    document.getElementById('siRedis').textContent = sv.redis.ok ? '✓ Online' : '✗ Offline';
+    document.getElementById('siRedis').className = 'val ' + (sv.redis.ok ? 'ok' : 'bad');
+    document.getElementById('siDocs').textContent = sv.vector_store.document_count + ' chunks';
+  } catch(e) {}
+}
+
+// ── Ingest ───────────────────────────────────────────────────────────────────
+ingestBtn.addEventListener('click', async () => {
+  const text = ingestTextEl.value.trim();
+  if (!text) return;
+  ingestBtn.disabled = true;
+  ingestBtn.textContent = 'Adding...';
+  try {
+    const res = await fetch(`${API_BASE}/ingest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source: 'web-ui' }),
+    });
+    const data = await res.json();
+    ingestTextEl.value = '';
+    ingestBtn.textContent = `✓ Added ${data.chunks_added} chunks`;
+    setTimeout(() => { ingestBtn.textContent = 'Add to Knowledge Base'; ingestBtn.disabled = false; }, 2000);
+    fetchHealth();
+  } catch(e) {
+    ingestBtn.textContent = '✗ Error'; ingestBtn.disabled = false;
+  }
+});
+
+// ── Clear ────────────────────────────────────────────────────────────────────
+clearBtn.addEventListener('click', () => {
+  messagesEl.innerHTML = '';
+  addMessage('assistant', 'Conversation cleared. How can I help you?');
+});
+
+// ── Ping ─────────────────────────────────────────────────────────────────────
+setInterval(() => {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+  }
+}, 30000);
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>
